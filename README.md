@@ -23,3 +23,14 @@ epoll反应堆模型的简单实现，利用回调函数进行数据的传输
 
 ## DEMO6
 Windows下利用Qt框架写的翻转金币的小游戏
+
+## DEMO7
+定时器的简单实现，close_unalive_connection.cpp 文件利用了链表结构的定时器简易的实现了对处理非活动连接的断开，用来管理长时间处于非活动状态的连接
+
+## DEMO8
+利用 poll 模型简易的实现了多人聊天的 C-S 模型
+
+## JSON_parser
+JSON 格式的解析器
+
+> [教程源于知乎—————从零开始的 JSON 库教程](https://zhuanlan.zhihu.com/json-tutorial)
