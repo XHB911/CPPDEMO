@@ -108,6 +108,7 @@ int lept_json::parse_number(lept_context& c, lept_value& v) {
 }
 
 int lept_json::parse_string(lept_context& c, lept_value& v) {
+	unsigned u, u2;
 	size_t head = c.top, len;
 	const char* p;
 	EXPECT(c, '\"');
@@ -139,6 +140,34 @@ int lept_json::parse_string(lept_context& c, lept_value& v) {
 					case 'n':  PUTC(c, '\n'); break;
 					case 'r':  PUTC(c, '\r'); break;
 					case 't':  PUTC(c, '\t'); break;
+					case 'u':
+					{
+						if (!(p = parse_hex4(p, u))) {
+							c.top = head;
+							return LEPT_PARSE_INVALID_UNICODE_HEX;
+						}
+						if (u >= 0xD800 && u <= 0xDBFF) {
+							if (*p++ != '\\') {
+								c.top = head;
+								return LEPT_PARSE_INVALID_UNICODE_SURROGATE;
+							}
+							if (*p++ != 'u') {
+								c.top = head;
+								return LEPT_PARSE_INVALID_UNICODE_SURROGATE;
+							}
+							if (!(p = parse_hex4(p, u2))) {
+								c.top = head;
+								return LEPT_PARSE_INVALID_UNICODE_HEX;
+							}
+							if (u2 < 0xDC00 || u2 > 0xDFFF) {
+								c.top = head;
+								return LEPT_PARSE_INVALID_UNICODE_SURROGATE;
+							}
+							u = (((u - 0xD800) << 10) | (u2 - 0xDC00)) + 0x10000;
+						}
+						encode_utf8(c, u);
+						break;
+					}
 					default:
 						c.top = head;
 						return LEPT_PARSE_INVALID_STRING_ESCAPE;
@@ -154,6 +183,38 @@ int lept_json::parse_string(lept_context& c, lept_value& v) {
 				PUTC(c, ch);
 			}
 		}
+	}
+}
+
+const char* lept_json::parse_hex4(const char* p, unsigned& u) {
+	u = 0;
+	for (int i = 0; i < 4; ++i) {
+		char ch = *p++;
+		u <<= 4;
+		if (ch >= '0' && ch <= '9') u |= ch - '0';
+		else if (ch >= 'A' && ch <= 'F') u |= ch - ('A' - 10);
+		else if (ch >= 'a' && ch <= 'f') u |= ch - ('a' - 10);
+		else return nullptr;
+	}
+	return p;
+}
+
+void lept_json::encode_utf8(lept_context& c, unsigned u) {
+	if (u <= 0x7F) PUTC(c, u & 0xFF);
+	else if (u <= 0x7FF) {
+		PUTC(c, 0xC0 | ((u >> 6) & 0xFF));
+		PUTC(c, 0x80 | ( u & 0x3F));
+	} else if (u <= 0xFFFF) {
+		PUTC(c, 0xE0 | ((u >> 12) & 0xFF));
+		PUTC(c, 0x80 | ((u >> 6) & 0x3F));
+		PUTC(c, 0x80 | ( u & 0x3F));
+	}
+	else {
+		assert(u <= 0x10FFFF);
+		PUTC(c, 0xF0 | ((u >> 18) & 0xFF));
+		PUTC(c, 0x80 | ((u >> 12) & 0x3F));
+		PUTC(c, 0x80 | ((u >> 6) & 0x3F));
+		PUTC(c, 0x80 | ( u & 0x3F));
 	}
 }
 

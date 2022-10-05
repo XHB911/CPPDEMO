@@ -36,13 +36,6 @@ static int test_pass = 0;
 		EXPECT_EQ_INT(JSON_NULL, lept_json::get_type(v)); \
 	} while(0)
 
-static void test_parse_null() {
-	lept_value v;
-	v.type = JSON_FALSE;
-	EXPECT_EQ_INT(LEPT_PARSE_OK, lept_json::parse(v, "null"));
-	EXPECT_EQ_INT(JSON_NULL, lept_json::get_type(v));
-}
-
 #define TEST_NUMBER(expect, json) \
 	do { \
 		lept_value v; \
@@ -50,6 +43,24 @@ static void test_parse_null() {
 		EXPECT_EQ_INT(JSON_NUMBER, lept_json::get_type(v)); \
 		EXPECT_EQ_DOUBLE(expect, lept_json::get_number(v)); \
 	} while(0)
+
+#define TEST_STRING(expect, json) \
+	do { \
+		lept_value v; \
+		lept_json::init(v); \
+		EXPECT_EQ_INT(LEPT_PARSE_OK, lept_json::parse(v, json)); \
+		EXPECT_EQ_INT(JSON_STRING, lept_json::get_type(v)); \
+		EXPECT_EQ_STRING(expect, lept_json::get_string(v), lept_json::get_string_length(v)); \
+		lept_json::set_null(v); \
+	} while(0)
+
+
+static void test_parse_null() {
+	lept_value v;
+	v.type = JSON_FALSE;
+	EXPECT_EQ_INT(LEPT_PARSE_OK, lept_json::parse(v, "null"));
+	EXPECT_EQ_INT(JSON_NULL, lept_json::get_type(v));
+}
 
 static void test_parse_true() {
 	lept_value v;
@@ -130,6 +141,77 @@ static void test_parse_number() {
 	TEST_NUMBER(-1.7976931348623157e+308, "-1.7976931348623157e+308");
 }
 
+static void test_parse_string() {
+	TEST_STRING("", "\"\"");
+    TEST_STRING("Hello", "\"Hello\"");
+    TEST_STRING("Hello\nWorld", "\"Hello\\nWorld\"");
+    TEST_STRING("\" \\ / \b \f \n \r \t", "\"\\\" \\\\ \\/ \\b \\f \\n \\r \\t\"");
+    TEST_STRING("Hello\0World", "\"Hello\\u0000World\"");
+    TEST_STRING("\x24", "\"\\u0024\"");         /* Dollar sign U+0024 */
+    TEST_STRING("\xC2\xA2", "\"\\u00A2\"");     /* Cents sign U+00A2 */
+    TEST_STRING("\xE2\x82\xAC", "\"\\u20AC\""); /* Euro sign U+20AC */
+    TEST_STRING("\xF0\x9D\x84\x9E", "\"\\uD834\\uDD1E\"");  /* G clef sign U+1D11E */
+    TEST_STRING("\xF0\x9D\x84\x9E", "\"\\ud834\\udd1e\"");  /* G clef sign U+1D11E */
+}
+
+static void test_parse_missing_quotation_mark() {
+    TEST_ERROR(LEPT_PARSE_MISS_QUOTATION_MARK, "\"");
+    TEST_ERROR(LEPT_PARSE_MISS_QUOTATION_MARK, "\"abc");
+}
+
+static void test_parse_invalid_string_escape() {
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\v\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\'\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\0\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\x12\"");
+}
+
+static void test_parse_invalid_string_char() {
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_CHAR, "\"\x01\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
+}
+
+static void test_parse_invalid_unicode_hex() {
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u0\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u01\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u012\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u/000\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\uG000\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u0/00\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u0G00\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u00/0\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u00G0\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u000/\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u000G\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX, "\"\\u 123\"");
+}
+
+static void test_parse_invalid_unicode_surrogate() {
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uDBFF\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\\\\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uDBFF\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uE000\"");
+}
+
+static void test_parse() {
+	test_parse_null();
+    test_parse_true();
+    test_parse_false();
+	test_parse_number();
+	test_parse_string();
+    test_parse_expect_value();
+    test_parse_invalid_value();
+    test_parse_root_not_singular();
+	test_parse_number_too_big();
+    test_parse_missing_quotation_mark();
+    test_parse_invalid_string_escape();
+    test_parse_invalid_string_char();
+    test_parse_invalid_unicode_hex();
+    test_parse_invalid_unicode_surrogate();
+}
+
 static void test_access_string() {
     lept_value v;
 	lept_json::init(v);
@@ -160,23 +242,25 @@ static void test_access_number() {
 	lept_json::set_null(v);
 }
 
-static void test_parse() {
-	test_parse_null();
-    test_parse_true();
-    test_parse_false();
-    test_parse_expect_value();
-    test_parse_invalid_value();
-    test_parse_root_not_singular();
-	test_parse_number();
-	test_parse_invalid_value();
-	test_parse_number_too_big();
-	test_access_number();
-	test_access_boolean();
-	test_access_string();
+static void test_access_null() {
+    lept_value v;
+	lept_json::init(v);
+	lept_json::set_string(v, "a", 1);
+	lept_json::set_null(v);
+    EXPECT_EQ_INT(JSON_NULL, lept_json::get_type(v));
+	lept_json::set_null(v);
+}
+
+static void test_access() {
+	test_access_null();
+    test_access_boolean();
+    test_access_number();
+    test_access_string();
 }
 
 int main() {
 	test_parse();
+	test_access();
 	printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
 	return main_ret;
 }

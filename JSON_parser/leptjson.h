@@ -9,6 +9,7 @@
 #endif
 
 #define EXPECT(c, ch) do { assert(*c.json == (ch)); c.json++; } while(0)
+#define STRING_ERROR(ret) do { c.top = head; return ret; } while(0)
 #define ISDIGIT(ch) ((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch) ((ch) >= '1' && (ch) <= '9')
 #define PUTC(c, ch) do { *(char*)lept_context::push(c, sizeof(char)) = (ch); } while(0)
@@ -52,7 +53,9 @@ enum {
 	LEPT_PARSE_NUMBER_TOO_BIG,
 	LEPT_PARSE_MISS_QUOTATION_MARK,
 	LEPT_PARSE_INVALID_STRING_ESCAPE,
-    LEPT_PARSE_INVALID_STRING_CHAR
+    LEPT_PARSE_INVALID_STRING_CHAR,
+	LEPT_PARSE_INVALID_UNICODE_HEX,
+	LEPT_PARSE_INVALID_UNICODE_SURROGATE
 };
 
 class lept_json {
@@ -74,6 +77,8 @@ private:
 	static int parse_value(lept_context& c, lept_value& v);
 	static int parse_number(lept_context& c, lept_value& v);
 	static int parse_string(lept_context& c, lept_value& v);
+	static const char* parse_hex4(const char* p, unsigned& u);
+	static void encode_utf8(lept_context& c, unsigned u);
 	static void lept_free(lept_value& v) {
 		if (v.type == JSON_STRING) free(v.u.s.s);
 		v.type = JSON_NULL;
