@@ -25,10 +25,26 @@ epoll反应堆模型的简单实现，利用回调函数进行数据的传输
 Windows下利用Qt框架写的翻转金币的小游戏
 
 ## DEMO7
-定时器的简单实现，close_unalive_connection.cpp 文件利用了链表结构的定时器简易的实现了对处理非活动连接的断开，用来管理长时间处于非活动状态的连接
-
-## DEMO8
 利用 poll 模型简易的实现了多人聊天的 C-S 模型
+
+## CGIServer
+实现简易的CGI服务器，利用进程池、epoll 模型实现
+
+> 参照《Linux 高性能服务器编程》
+
+## Timer
+实现简易的定时器，有遍历时间器、时间轮、时间堆的简易实现
+
+> 参照《Linux 高性能服务器编程》
+
+## JSON_parser
+JSON 格式的解析器
+
+> [教程源于知乎—————从零开始的 JSON 库教程](https://zhuanlan.zhihu.com/json-tutorial)
+## WebServer
+实现简易的Web服务器，利用线程池、 epoll 模型实现
+
+> 参照《Linux 高性能服务器编程》
 
 ## JSON_parser
 JSON 格式的解析器
