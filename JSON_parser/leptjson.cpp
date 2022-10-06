@@ -75,6 +75,7 @@ int lept_json::parse_value(lept_context& c, lept_value& v) {
 		case 'n': return parse_literal(c, v, "null", JSON_NULL);
 		case '\0': return LEPT_PARSE_EXPECT_VALUE;
 		case '"': return parse_string(c, v);
+		case '[': return parse_array(c, v);
 		default: return parse_number(c, v);
 	}
 }
@@ -218,6 +219,48 @@ void lept_json::encode_utf8(lept_context& c, unsigned u) {
 	}
 }
 
+int lept_json::parse_array(lept_context& c, lept_value& v) {
+	size_t i, size = 0;
+	int ret;
+	EXPECT(c, '[');
+	parse_whitespace(c);
+	if (*c.json == ']') {
+		c.json++;
+		v.type = JSON_ARRAY;
+		v.u.a.size = 0;
+		v.u.a.e = nullptr;
+		return LEPT_PARSE_OK;
+	}
+
+	for (;;) {
+		lept_value e;
+		init(e);
+		if ((ret = parse_value(c, e)) != LEPT_PARSE_OK) break;
+		memcpy(lept_context::push(c, sizeof(lept_value)), &e, sizeof(lept_value));
+		++ size;
+		parse_whitespace(c);
+		if (*c.json == ',') {
+			c.json++;
+			parse_whitespace(c);
+		} else if (*c.json == ']') {
+			c.json++;
+			v.type = JSON_ARRAY;
+			v.u.a.size = size;
+			size *= sizeof(lept_value);
+			memcpy(v.u.a.e = (lept_value*)malloc(size), lept_context::pop(c, size), size);
+			return LEPT_PARSE_OK;
+		} else {
+			ret = LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
+			break;
+		}
+	}
+
+	for (i = 0; i < size; ++i) {
+		lept_free(*(lept_value*)lept_context::pop(c, sizeof(lept_value)));
+	}
+	return ret;
+}
+
 int lept_json::get_boolean(const lept_value& v) {
 	assert(v.type == JSON_TRUE || v.type == JSON_FALSE);
 	return v.type == JSON_TRUE;
@@ -257,6 +300,17 @@ void lept_json::set_string(lept_value& v, const char* s, size_t len) {
 	v.u.s.s[len] = '\0';
 	v.u.s.len = len;
 	v.type = JSON_STRING;
+}
+
+size_t lept_json::get_array_size(const lept_value& v) {
+	assert(v.type == JSON_ARRAY);
+	return v.u.a.size;
+}
+
+lept_value& lept_json::get_array_element(const lept_value& v, size_t index) {
+	assert(v.type == JSON_ARRAY);
+	assert(index < v.u.a.size);
+	return v.u.a.e[index];
 }
 
 };

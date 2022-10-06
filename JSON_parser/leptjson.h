@@ -3,6 +3,7 @@
 
 #include <string>
 #include <stdlib.h>
+#include <assert.h>
 
 #ifndef LEPT_PARSE_STACK_INIT_SIZE
 #define LEPT_PARSE_STACK_INIT_SIZE 256
@@ -31,7 +32,11 @@ struct lept_value {
 		struct {
 			char* s;
 			size_t len;
-		} s;
+		} s;	// 字符串
+		struct {
+			lept_value* e;
+			size_t size;	// 元素个数
+		} a;	// 数组
 		double n;
 	} u;
 	lept_type type;
@@ -55,7 +60,8 @@ enum {
 	LEPT_PARSE_INVALID_STRING_ESCAPE,
     LEPT_PARSE_INVALID_STRING_CHAR,
 	LEPT_PARSE_INVALID_UNICODE_HEX,
-	LEPT_PARSE_INVALID_UNICODE_SURROGATE
+	LEPT_PARSE_INVALID_UNICODE_SURROGATE,
+	LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET
 };
 
 class lept_json {
@@ -71,19 +77,33 @@ public:
 	static const char* get_string(const lept_value& v);
 	static size_t get_string_length(const lept_value& v);
 	static void set_string(lept_value& v, const char* s, size_t len);
+	static size_t get_array_size(const lept_value& v);
+	static lept_value& get_array_element(const lept_value& v, size_t index);
 private:
 	static void parse_whitespace(lept_context& c);
 	static int parse_literal(lept_context& c, lept_value& v, const char* literal, lept_type type);
 	static int parse_value(lept_context& c, lept_value& v);
 	static int parse_number(lept_context& c, lept_value& v);
 	static int parse_string(lept_context& c, lept_value& v);
+	static int parse_array(lept_context& c, lept_value& v);
 	static const char* parse_hex4(const char* p, unsigned& u);
 	static void encode_utf8(lept_context& c, unsigned u);
 	static void lept_free(lept_value& v) {
-		if (v.type == JSON_STRING) free(v.u.s.s);
+		size_t i;
+		switch (v.type) {
+			case JSON_STRING:
+				free(v.u.s.s);
+				break;
+			case JSON_ARRAY:
+				for (i = 0; i < v.u.a.size; ++i)
+					lept_free(v.u.a.e[i]);
+				free(v.u.a.e);
+				break;
+			default:
+				break;
+		}
 		v.type = JSON_NULL;
 	}
-
 };
 
 };
