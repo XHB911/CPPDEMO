@@ -73,9 +73,10 @@ int lept_json::parse_value(lept_context& c, lept_value& v) {
 		case 't': return parse_literal(c, v, "true", JSON_TRUE);
 		case 'f': return parse_literal(c, v, "false", JSON_FALSE);
 		case 'n': return parse_literal(c, v, "null", JSON_NULL);
-		case '\0': return LEPT_PARSE_EXPECT_VALUE;
 		case '"': return parse_string(c, v);
 		case '[': return parse_array(c, v);
+		case '{': return parse_object(c, v);
+		case '\0': return LEPT_PARSE_EXPECT_VALUE;
 		default: return parse_number(c, v);
 	}
 }
@@ -108,9 +109,9 @@ int lept_json::parse_number(lept_context& c, lept_value& v) {
 	return LEPT_PARSE_OK;
 }
 
-int lept_json::parse_string(lept_context& c, lept_value& v) {
+int lept_json::parse_string_raw(lept_context& c, char** str, size_t& len) {
+	size_t head = c.top;
 	unsigned u, u2;
-	size_t head = c.top, len;
 	const char* p;
 	EXPECT(c, '\"');
 	p = c.json;
@@ -120,7 +121,7 @@ int lept_json::parse_string(lept_context& c, lept_value& v) {
 			case '\"' :
 			{
 				len = c.top - head;
-				set_string(v, (const char*)lept_context::pop(c, len), len);
+				*str = (char*)lept_context::pop(c, len);
 				c.json = p;
 				return LEPT_PARSE_OK;
 			}
@@ -185,6 +186,80 @@ int lept_json::parse_string(lept_context& c, lept_value& v) {
 			}
 		}
 	}
+}
+
+int lept_json::parse_string(lept_context& c, lept_value& v) {
+	int ret;
+	char* s;
+	size_t len;
+	if ((ret = parse_string_raw(c, &s, len)) == LEPT_PARSE_OK) {
+		set_string(v, s, len);
+	}
+	return ret;
+}
+
+int lept_json::parse_object(lept_context& c, lept_value& v) {
+	size_t i, size;
+	lept_member m;
+	int ret;
+	EXPECT(c, '{');
+	parse_whitespace(c);
+	if (*c.json == '}') {
+		c.json++;
+		v.type = JSON_OBJECT;
+		v.u.o.m = nullptr;
+		v.u.o.size = 0;
+		return LEPT_PARSE_OK;
+	}
+	m.k = nullptr;
+	size = 0;
+	for (;;) {
+		char* str;
+		init(m.v);
+		if (*c.json != '"') {
+			ret = LEPT_PARSE_MISS_KEY;
+			break;
+		}
+		if ((ret = parse_string_raw(c, &str, m.klen)) != LEPT_PARSE_OK) break;
+		memcpy(m.k = (char*)malloc(m.klen + 1), str, m.klen);
+		m.k[m.klen] = '\0';
+		parse_whitespace(c);
+		if (*c.json != ':') {
+			ret = LEPT_PARSE_MISS_COLON;
+			break;
+		}
+		c.json++;
+		parse_whitespace(c);
+		if ((ret = parse_value(c, m.v)) != LEPT_PARSE_OK) break;
+		memcpy(lept_context::push(c, sizeof(lept_member)), &m, sizeof(lept_member));
+		++ size;
+		m.k = nullptr;
+		parse_whitespace(c);
+		if (*c.json == ',') {
+			c.json++;
+			parse_whitespace(c);
+		} else if (*c.json == '}') {
+			size_t s = sizeof(lept_member) * size;
+			c.json++;
+			v.type = JSON_OBJECT;
+			v.u.o.size = size;
+			memcpy(v.u.o.m = (lept_member*)malloc(s), lept_context::pop(c, s), s);
+			return LEPT_PARSE_OK;
+		} else {
+			ret = LEPT_PARSE_MISS_COMMA_OR_CURLY_BRACKET;
+			break;
+		}
+	}
+
+	free(m.k);
+	for (i = 0; i < size; ++i) {
+		lept_member* m = (lept_member*)lept_context::pop(c, sizeof(lept_member));
+		free(m->k);
+		lept_free(m->v);
+	}
+
+	v.type = JSON_NULL;
+	return ret;
 }
 
 const char* lept_json::parse_hex4(const char* p, unsigned& u) {
@@ -311,6 +386,53 @@ lept_value& lept_json::get_array_element(const lept_value& v, size_t index) {
 	assert(v.type == JSON_ARRAY);
 	assert(index < v.u.a.size);
 	return v.u.a.e[index];
+}
+
+size_t lept_json::get_object_size(const lept_value& v) {
+	assert(v.type == JSON_OBJECT);
+	return v.u.o.size;
+}
+
+const char* lept_json::get_object_key(const lept_value& v, size_t index) {
+	assert(v.type == JSON_OBJECT);
+	assert(index < v.u.o.size);
+	return v.u.o.m[index].k;
+}
+
+size_t lept_json::get_object_key_length(const lept_value& v, size_t index) {
+	assert(v.type == JSON_OBJECT);
+	assert(index < v.u.o.size);
+	return v.u.o.m[index].klen;
+}
+
+lept_value& lept_json::get_object_value(const lept_value& v, size_t index) {
+	assert(v.type == JSON_OBJECT);
+	assert(index < v.u.o.size);
+	return v.u.o.m[index].v;
+}
+
+void lept_json::lept_free(lept_value& v) {
+	size_t i;
+	switch (v.type) {
+		case JSON_STRING:
+			free(v.u.s.s);
+			break;
+		case JSON_ARRAY:
+			for (i = 0; i < v.u.a.size; ++i)
+				lept_free(v.u.a.e[i]);
+			free(v.u.a.e);
+			break;
+		case JSON_OBJECT:
+			for (i = 0; i < v.u.o.size; ++i) {
+				free(v.u.o.m[i].k);
+				lept_free(v.u.o.m[i].v);
+			}
+			free(v.u.o.m);
+			break;
+		default:
+			break;
+	}
+	v.type = JSON_NULL;
 }
 
 };

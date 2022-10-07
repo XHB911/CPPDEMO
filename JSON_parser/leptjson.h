@@ -27,6 +27,8 @@ typedef enum {
 	JSON_OBJECT
 } lept_type;
 
+struct lept_member;
+
 struct lept_value {
 	union {
 		struct {
@@ -37,9 +39,19 @@ struct lept_value {
 			lept_value* e;
 			size_t size;	// 元素个数
 		} a;	// 数组
-		double n;
+		struct {
+			lept_member* m;
+			size_t size;
+		} o;	// 对象
+		double n;	// 数值
 	} u;
 	lept_type type;
+};
+
+struct lept_member {
+	char* k;
+	size_t klen;
+	lept_value v;
 };
 
 struct lept_context {
@@ -61,7 +73,10 @@ enum {
     LEPT_PARSE_INVALID_STRING_CHAR,
 	LEPT_PARSE_INVALID_UNICODE_HEX,
 	LEPT_PARSE_INVALID_UNICODE_SURROGATE,
-	LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET
+	LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET,
+	LEPT_PARSE_MISS_KEY,
+	LEPT_PARSE_MISS_COLON,
+	LEPT_PARSE_MISS_COMMA_OR_CURLY_BRACKET
 };
 
 class lept_json {
@@ -79,31 +94,22 @@ public:
 	static void set_string(lept_value& v, const char* s, size_t len);
 	static size_t get_array_size(const lept_value& v);
 	static lept_value& get_array_element(const lept_value& v, size_t index);
+	static size_t get_object_size(const lept_value& v);
+	static const char* get_object_key(const lept_value& v, size_t index);
+	static size_t get_object_key_length(const lept_value& v, size_t index);
+	static lept_value& get_object_value(const lept_value& v, size_t index);
 private:
 	static void parse_whitespace(lept_context& c);
 	static int parse_literal(lept_context& c, lept_value& v, const char* literal, lept_type type);
 	static int parse_value(lept_context& c, lept_value& v);
 	static int parse_number(lept_context& c, lept_value& v);
 	static int parse_string(lept_context& c, lept_value& v);
+	static int parse_string_raw(lept_context& c, char** str, size_t& v);	// 解析 JSON 字符串，把结果写入 str 和 len，str 指向 c.stack中的元素
 	static int parse_array(lept_context& c, lept_value& v);
+	static int parse_object(lept_context& c, lept_value& v);
 	static const char* parse_hex4(const char* p, unsigned& u);
 	static void encode_utf8(lept_context& c, unsigned u);
-	static void lept_free(lept_value& v) {
-		size_t i;
-		switch (v.type) {
-			case JSON_STRING:
-				free(v.u.s.s);
-				break;
-			case JSON_ARRAY:
-				for (i = 0; i < v.u.a.size; ++i)
-					lept_free(v.u.a.e[i]);
-				free(v.u.a.e);
-				break;
-			default:
-				break;
-		}
-		v.type = JSON_NULL;
-	}
+	static void lept_free(lept_value& v);
 };
 
 };
