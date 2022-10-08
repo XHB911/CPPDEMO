@@ -55,6 +55,18 @@ static int test_pass = 0;
 		lept_json::set_null(v); \
 	} while(0)
 
+#define TEST_ROUNDTRIP(json) \
+	do { \
+		lept_value v; \
+		char* json2; \
+		size_t length; \
+		lept_json::init(v); \
+		EXPECT_EQ_INT(LEPT_PARSE_OK, lept_json::parse(v, json)); \
+		json2 = lept_json::stringify(v, length); \
+		EXPECT_EQ_STRING(json, json2, length); \
+		lept_json::set_null(v); \
+		free(json2); \
+	} while(0)
 
 static void test_parse_null() {
 	lept_value v;
@@ -315,7 +327,7 @@ static void test_parse_object() {
 		EXPECT_EQ_INT(JSON_OBJECT, lept_json::get_type(o));
 		for (i = 0; i < 3; i++) {
 			lept_value ov = lept_json::get_object_value(o, i);
-			EXPECT_TRUE('1' + i == lept_json::get_object_key(o, i)[0]);
+			EXPECT_TRUE((char)('1' + i) == lept_json::get_object_key(o, i)[0]);
 			EXPECT_EQ_SIZE_T(1, lept_json::get_object_key_length(o, i));
 			EXPECT_EQ_INT(JSON_NUMBER, lept_json::get_type(ov));
 			EXPECT_EQ_DOUBLE(i + 1.0, lept_json::get_number(ov));
@@ -344,6 +356,58 @@ static void test_parse() {
 	test_parse_miss_comma_or_curly_bracket();
 	test_parse_miss_colon();
 	test_parse_miss_key();
+	test_parse_object();
+}
+
+void test_stringify_number() {
+	TEST_ROUNDTRIP("0");
+    TEST_ROUNDTRIP("-0");
+    TEST_ROUNDTRIP("1");
+    TEST_ROUNDTRIP("-1");
+    TEST_ROUNDTRIP("1.5");
+    TEST_ROUNDTRIP("-1.5");
+    TEST_ROUNDTRIP("3.25");
+    TEST_ROUNDTRIP("1e+20");
+    TEST_ROUNDTRIP("1.234e+20");
+    TEST_ROUNDTRIP("1.234e-20");
+
+    TEST_ROUNDTRIP("1.0000000000000002"); /* the smallest number > 1 */
+    TEST_ROUNDTRIP("4.9406564584124654e-324"); /* minimum denormal */
+    TEST_ROUNDTRIP("-4.9406564584124654e-324");
+    TEST_ROUNDTRIP("2.2250738585072009e-308");  /* Max subnormal double */
+    TEST_ROUNDTRIP("-2.2250738585072009e-308");
+    TEST_ROUNDTRIP("2.2250738585072014e-308");  /* Min normal positive double */
+    TEST_ROUNDTRIP("-2.2250738585072014e-308");
+    TEST_ROUNDTRIP("1.7976931348623157e+308");  /* Max double */
+    TEST_ROUNDTRIP("-1.7976931348623157e+308");
+}
+
+static void test_stringify_string() {
+	TEST_ROUNDTRIP("\"\"");
+    TEST_ROUNDTRIP("\"Hello\"");
+    TEST_ROUNDTRIP("\"Hello\\nWorld\"");
+    TEST_ROUNDTRIP("\"\\\" \\\\ / \\b \\f \\n \\r \\t\"");
+    TEST_ROUNDTRIP("\"Hello\\u0000World\"");
+}
+
+static void test_stringify_array() {
+	TEST_ROUNDTRIP("[]");
+    TEST_ROUNDTRIP("[null,false,true,123,\"abc\",[1,2,3]]");
+}
+
+static void test_stringify_object() {
+	TEST_ROUNDTRIP("{}");
+    TEST_ROUNDTRIP("{\"n\":null,\"f\":false,\"t\":true,\"i\":123,\"s\":\"abc\",\"a\":[1,2,3],\"o\":{\"1\":1,\"2\":2,\"3\":3}}");
+}
+
+static void test_stringify() {
+	TEST_ROUNDTRIP("null");
+	TEST_ROUNDTRIP("true");
+	TEST_ROUNDTRIP("false");
+	test_stringify_number();
+	test_stringify_string();
+	test_stringify_array();
+	test_stringify_object();
 }
 
 static void test_access_string() {
@@ -395,6 +459,7 @@ static void test_access() {
 int main() {
 	test_parse();
 	test_access();
+	test_stringify();
 	printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
 	return main_ret;
 }

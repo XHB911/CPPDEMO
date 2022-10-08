@@ -435,4 +435,74 @@ void lept_json::lept_free(lept_value& v) {
 	v.type = JSON_NULL;
 }
 
+void lept_json::stringify_string(lept_context& c, const char* s, size_t len) {
+	size_t i, size;
+	char* head, *p;
+	assert(s != nullptr);
+	p = head = (char*)lept_context::push(c, (size = len * 6 + 2));	// "\u00xx..."
+	*p++ = '"';
+	for (i = 0; i < len; ++i) {
+		unsigned char ch = (unsigned char)s[i];
+		switch (ch) {
+			case '\"': *p++ = '\\'; *p++ = '\"'; break;
+			case '\\': *p++ = '\\'; *p++ = '\\'; break;
+			case '\b': *p++ = '\\'; *p++ = 'b';	 break;
+			case '\f': *p++ = '\\'; *p++ = 'f';  break;
+			case '\n': *p++ = '\\'; *p++ = 'n';  break;
+			case '\r': *p++ = '\\'; *p++ = 'r';  break;
+			case '\t': *p++ = '\\'; *p++ = 't';  break;
+			default:
+				if (ch < 0x20) {
+					*p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
+					*p++ = hex_digits[ch >> 4];
+					*p++ = hex_digits[ch & 15];
+				} else {
+					*p++ = s[i];
+				}
+		}
+	}
+	*p++ = '"';
+	c.top -= size - (p - head);
+}
+
+void lept_json::stringify_value(lept_context& c, const lept_value& v) {
+	size_t i;
+	switch (v.type) {
+		case JSON_NULL: PUTS(c, "null", 4); break;
+		case JSON_TRUE: PUTS(c, "true", 4); break;
+		case JSON_FALSE: PUTS(c, "false", 5); break;
+		case JSON_NUMBER: c.top -= 32 - sprintf((char*)lept_context::push(c, 32), "%.17g", v.u.n); break;
+		case JSON_STRING: stringify_string(c, v.u.s.s, v.u.s.len); break;
+		case JSON_ARRAY:
+			PUTC(c, '[');
+			for (i = 0; i < v.u.a.size; ++i) {
+				if (i > 0) PUTC(c, ',');
+				stringify_value(c, v.u.a.e[i]);
+			}
+			PUTC(c, ']');
+			break;
+		case JSON_OBJECT:
+			PUTC(c, '{');
+			for (i = 0; i < v.u.o.size; ++i) {
+				if (i > 0) PUTC(c, ',');
+				stringify_string(c, v.u.o.m[i].k, v.u.o.m[i].klen);
+				PUTC(c, ':');
+				stringify_value(c, v.u.o.m[i].v);
+			}
+			PUTC(c, '}');
+			break;
+		default: assert(0 && "invalid type");
+	}
+}
+
+char* lept_json::stringify(const lept_value& v, size_t& length) {
+	lept_context c;
+	c.stack = (char*)malloc(c.size = LEPT_PARSE_STRINGIFY_INIT_SIZE);
+	c.top = 0;
+	stringify_value(c, v);
+	length = c.top;
+	PUTC(c, '\0');
+	return c.stack;
+}
+
 };

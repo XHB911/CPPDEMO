@@ -9,11 +9,16 @@
 #define LEPT_PARSE_STACK_INIT_SIZE 256
 #endif
 
+#ifndef LEPT_PARSE_STRINGIFY_INIT_SIZE
+#define LEPT_PARSE_STRINGIFY_INIT_SIZE 256
+#endif
+
 #define EXPECT(c, ch) do { assert(*c.json == (ch)); c.json++; } while(0)
 #define STRING_ERROR(ret) do { c.top = head; return ret; } while(0)
 #define ISDIGIT(ch) ((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch) ((ch) >= '1' && (ch) <= '9')
 #define PUTC(c, ch) do { *(char*)lept_context::push(c, sizeof(char)) = (ch); } while(0)
+#define PUTS(c, s, len) memcpy(lept_context::push(c, len), s, len)
 
 namespace leptjson{
 
@@ -82,6 +87,7 @@ enum {
 class lept_json {
 public:
 	static int parse(lept_value& v, const char* json);
+	static char* stringify(const lept_value& v, size_t& length);
 	static const lept_type get_type(const lept_value& v);
 	static void init(lept_value& v) { v.type = JSON_NULL; }
 	static void set_null(lept_value& v) { return lept_free(v); }
@@ -110,6 +116,10 @@ private:
 	static const char* parse_hex4(const char* p, unsigned& u);
 	static void encode_utf8(lept_context& c, unsigned u);
 	static void lept_free(lept_value& v);
+	static void stringify_string(lept_context& c, const char* s, size_t len);
+	static void stringify_value(lept_context& c, const lept_value& v);
+private:
+	static constexpr char hex_digits[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 };
 
 };
