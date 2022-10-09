@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iostream>
 
 #include "leptjson.h"
 
@@ -66,6 +67,18 @@ static int test_pass = 0;
 		EXPECT_EQ_STRING(json, json2, length); \
 		lept_json::set_null(v); \
 		free(json2); \
+	} while(0)
+
+#define TEST_EQUAL(json1, json2, equality) \
+	do { \
+		lept_value v1, v2; \
+		lept_json::init(v1); \
+		lept_json::init(v2); \
+		EXPECT_EQ_INT(LEPT_PARSE_OK, lept_json::parse(v1, json1)); \
+		EXPECT_EQ_INT(LEPT_PARSE_OK, lept_json::parse(v2, json2)); \
+		EXPECT_EQ_INT(equality, lept_json::is_equal(v1, v2)); \
+		lept_json::set_null(v1); \
+		lept_json::set_null(v2); \
 	} while(0)
 
 static void test_parse_null() {
@@ -400,6 +413,72 @@ static void test_stringify_object() {
     TEST_ROUNDTRIP("{\"n\":null,\"f\":false,\"t\":true,\"i\":123,\"s\":\"abc\",\"a\":[1,2,3],\"o\":{\"1\":1,\"2\":2,\"3\":3}}");
 }
 
+static void test_equal() {
+    TEST_EQUAL("true", "true", 1);
+    TEST_EQUAL("true", "false", 0);
+    TEST_EQUAL("false", "false", 1);
+    TEST_EQUAL("null", "null", 1);
+    TEST_EQUAL("null", "0", 0);
+    TEST_EQUAL("123", "123", 1);
+    TEST_EQUAL("123", "456", 0);
+    TEST_EQUAL("\"abc\"", "\"abc\"", 1);
+    TEST_EQUAL("\"abc\"", "\"abcd\"", 0);
+    TEST_EQUAL("[]", "[]", 1);
+    TEST_EQUAL("[]", "null", 0);
+    TEST_EQUAL("[1,2,3]", "[1,2,3]", 1);
+    TEST_EQUAL("[1,2,3]", "[1,2,3,4]", 0);
+    TEST_EQUAL("[[]]", "[[]]", 1);
+    TEST_EQUAL("{}", "{}", 1);
+    TEST_EQUAL("{}", "null", 0);
+    TEST_EQUAL("{}", "[]", 0);
+    TEST_EQUAL("{\"a\":1,\"b\":2}", "{\"a\":1,\"b\":2}", 1);
+    TEST_EQUAL("{\"a\":1,\"b\":2}", "{\"b\":2,\"a\":1}", 1);
+    TEST_EQUAL("{\"a\":1,\"b\":2}", "{\"a\":1,\"b\":3}", 0);
+    TEST_EQUAL("{\"a\":1,\"b\":2}", "{\"a\":1,\"b\":2,\"c\":3}", 0);
+    TEST_EQUAL("{\"a\":{\"b\":{\"c\":{}}}}", "{\"a\":{\"b\":{\"c\":{}}}}", 1);
+    TEST_EQUAL("{\"a\":{\"b\":{\"c\":{}}}}", "{\"a\":{\"b\":{\"c\":[]}}}", 0);
+}
+
+
+static void test_copy() {
+    lept_value v1, v2;
+	lept_json::init(v1);
+	lept_json::parse(v1, "{\"t\":true,\"f\":false,\"n\":null,\"d\":1.5,\"a\":[1,2,3]}");
+	lept_json::init(v2);
+	lept_json::copy(v2, v1);
+    EXPECT_TRUE(lept_json::is_equal(v2, v1));
+	lept_json::set_null(v1);
+	lept_json::set_null(v2);
+}
+
+static void test_move() {
+    lept_value v1, v2, v3;
+	lept_json::init(v1);
+    lept_json::parse(v1, "{\"t\":true,\"f\":false,\"n\":null,\"d\":1.5,\"a\":[1,2,3]}");
+	lept_json::init(v2);
+    lept_json::copy(v2, v1);
+    lept_json::init(v3);
+    lept_json::move(v3, v2);
+    EXPECT_EQ_INT(JSON_NULL, lept_json::get_type(v2));
+    EXPECT_TRUE(lept_json::is_equal(v3, v1));
+	lept_json::set_null(v1);
+    lept_json::set_null(v2);
+    lept_json::set_null(v3);
+}
+
+static void test_swap() {
+    lept_value v1, v2;
+    lept_json::init(v1);
+    lept_json::init(v2);
+    lept_json::set_string(v1, "Hello",  5);
+    lept_json::set_string(v2, "World!", 6);
+    lept_json::swap(v1, v2);
+    EXPECT_EQ_STRING("World!", lept_json::get_string(v1), lept_json::get_string_length(v1));
+    EXPECT_EQ_STRING("Hello",  lept_json::get_string(v2), lept_json::get_string_length(v2));
+	lept_json::set_null(v1);
+    lept_json::set_null(v2);
+}
+
 static void test_stringify() {
 	TEST_ROUNDTRIP("null");
 	TEST_ROUNDTRIP("true");
@@ -460,6 +539,10 @@ int main() {
 	test_parse();
 	test_access();
 	test_stringify();
+	test_equal();
+	test_copy();
+	test_move();
+	test_swap();
 	printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
 	return main_ret;
 }

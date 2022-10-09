@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#ifndef LEPT_KEY_NOT_EXIST
+#define LEPT_KEY_NOT_EXIST (sizeof(size_t) - 1)
+#endif
+
+
 #ifndef LEPT_PARSE_STACK_INIT_SIZE
 #define LEPT_PARSE_STACK_INIT_SIZE 256
 #endif
@@ -43,10 +48,12 @@ struct lept_value {
 		struct {
 			lept_value* e;
 			size_t size;	// 元素个数
+			size_t capacity;
 		} a;	// 数组
 		struct {
 			lept_member* m;
 			size_t size;
+			size_t capacity;
 		} o;	// 对象
 		double n;	// 数值
 	} u;
@@ -88,22 +95,51 @@ class lept_json {
 public:
 	static int parse(lept_value& v, const char* json);
 	static char* stringify(const lept_value& v, size_t& length);
+
 	static const lept_type get_type(const lept_value& v);
 	static void init(lept_value& v) { v.type = JSON_NULL; }
+	static void copy(lept_value& dst, const lept_value& src);
+	static void move(lept_value& dst, lept_value& src);
+	static void swap(lept_value& lhs, lept_value& rhs);
+	static bool is_equal(const lept_value& lhs, const lept_value& rhs);
+
 	static void set_null(lept_value& v) { return lept_free(v); }
+
 	static int get_boolean(const lept_value& v);
 	static void set_boolean(lept_value& v, int b);
+
 	static double get_number(const lept_value& v);
 	static void set_number(lept_value& v, double n);
+
 	static const char* get_string(const lept_value& v);
 	static size_t get_string_length(const lept_value& v);
 	static void set_string(lept_value& v, const char* s, size_t len);
+
 	static size_t get_array_size(const lept_value& v);
+	static size_t get_array_capacity(const lept_value& v);
+	static void reserve_array(lept_value& v, size_t capacity);
+	static void shrink_array(lept_value& v);
+	static void clear_array(lept_value& v);
 	static lept_value& get_array_element(const lept_value& v, size_t index);
+	static lept_value& pushback_array_element(lept_value& v);
+	static void popback_array_element(lept_value& v);
+	static lept_value& insert_array_element(lept_value& v, size_t index);
+	static void erase_array_element(lept_value& v, size_t index, size_t count);
+	static void set_array(lept_value& v, size_t capacity);
+
+	static void set_object(lept_value& v, size_t capacity);
 	static size_t get_object_size(const lept_value& v);
+	static size_t get_object_capacity(const lept_value& v);
+	static void reserve_object(lept_value& v, size_t capacity);
+	static void shrink_object(lept_value& v);
+	static void clear_object(lept_value& v);
 	static const char* get_object_key(const lept_value& v, size_t index);
 	static size_t get_object_key_length(const lept_value& v, size_t index);
 	static lept_value& get_object_value(const lept_value& v, size_t index);
+	static size_t find_object_index(const lept_value& v, const char* key, size_t klen);
+	static lept_value& find_object_value(lept_value& v, const char* key, size_t klen);
+	static lept_value& set_object_value(lept_value& v, const char* key, size_t klen);
+	static void remove_object_value(lept_value& v, size_t index);
 private:
 	static void parse_whitespace(lept_context& c);
 	static int parse_literal(lept_context& c, lept_value& v, const char* literal, lept_type type);

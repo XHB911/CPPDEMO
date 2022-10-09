@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iostream>
 
 namespace leptjson {
 
@@ -503,6 +504,223 @@ char* lept_json::stringify(const lept_value& v, size_t& length) {
 	length = c.top;
 	PUTC(c, '\0');
 	return c.stack;
+}
+
+void lept_json::copy(lept_value& dst, const lept_value& src) {
+	assert(&dst != &src);
+	switch (src.type) {
+		case JSON_STRING:
+			set_string(dst, src.u.s.s, src.u.s.len);
+			break;
+		case JSON_ARRAY:
+			set_array(dst, src.u.a.size);
+			for (size_t i = 0; i < src.u.a.size; ++i)
+				copy(dst.u.a.e[i], src.u.a.e[i]);
+			dst.u.a.size = src.u.a.size;
+			break;
+		case JSON_OBJECT:
+			set_object(dst, src.u.o.size);
+			for (size_t i = 0; i < src.u.o.size; ++i) {
+				lept_value& val = set_object_value(dst, src.u.o.m[i].k, src.u.o.m[i].klen);
+				copy(val, src.u.o.m[i].v);
+			}
+			dst.u.o.size = src.u.o.size;
+			break;
+		default:
+			set_null(dst);
+			memcpy(&dst, &src, sizeof(lept_value));
+			break;
+	}
+}
+
+void lept_json::move(lept_value& dst, lept_value& src) {
+	assert(&dst != &src);
+	set_null(dst);
+	memcpy(&dst, &src, sizeof(lept_value));
+	init(src);
+}
+
+void lept_json::swap(lept_value& lhs, lept_value& rhs) {
+	if (&lhs != &rhs) {
+		lept_value tmp;
+		memcpy(&tmp, &lhs, sizeof(lept_value));
+		memcpy(&lhs, &rhs, sizeof(lept_value));
+		memcpy(&rhs, &tmp, sizeof(lept_value));
+	}
+}
+
+bool lept_json::is_equal(const lept_value& lhs, const lept_value& rhs) {
+	if (lhs.type != rhs.type) return false;
+	switch (lhs.type) {
+		case JSON_STRING:
+			return lhs.u.s.len == rhs.u.s.len && memcmp(lhs.u.s.s, rhs.u.s.s, lhs.u.s.len) == 0;
+		case JSON_NUMBER:
+			return lhs.u.n == rhs.u.n;
+		case JSON_ARRAY:
+			if (lhs.u.a.size != rhs.u.a.size) return false;
+			for (size_t i = 0; i < lhs.u.a.size; ++i) {
+				if (!is_equal(lhs.u.a.e[i], rhs.u.a.e[i])) return false;
+			}
+			return true;
+		case JSON_OBJECT:
+			if (lhs.u.o.size != rhs.u.o.size) return false;
+			for (size_t i = 0; i < lhs.u.o.size; ++i) {
+				size_t index = find_object_index(rhs, lhs.u.o.m[i].k, lhs.u.o.m[i].klen);
+				if (index == LEPT_KEY_NOT_EXIST) return false;
+				if (!is_equal(lhs.u.o.m[i].v, rhs.u.o.m[index].v)) return false;
+			}
+			return true;
+		default:
+			return true;
+	}
+}
+
+size_t lept_json::get_array_capacity(const lept_value& v) {
+	assert(v.type == JSON_ARRAY);
+	return v.u.a.capacity;
+}
+
+void lept_json::reserve_array(lept_value& v, size_t capacity) {
+	assert(v.type == JSON_ARRAY);
+	if (v.u.a.capacity < capacity) {
+		v.u.a.e = (lept_value*)realloc(v.u.a.e, capacity * sizeof(lept_value));
+		v.u.a.capacity = capacity;
+	}
+}
+
+void lept_json::shrink_array(lept_value& v) {
+	assert(v.type == JSON_ARRAY);
+	if (v.u.a.capacity > v.u.a.size) {
+		v.u.a.e = (lept_value*)realloc(v.u.a.e, v.u.a.size * sizeof(lept_value));
+		v.u.a.capacity = v.u.a.size;
+	}
+}
+
+void lept_json::clear_array(lept_value& v) {
+	assert(v.type == JSON_ARRAY);
+	erase_array_element(v, 0, v.u.a.size);
+}
+
+lept_value& lept_json::pushback_array_element(lept_value& v) {
+	assert(v.type == JSON_ARRAY);
+	if (v.u.a.size == v.u.a.capacity) {
+		reserve_array(v, v.u.a.capacity == 0 ? 1 : v.u.a.capacity * 2);
+	}
+	init(v.u.a.e[v.u.a.size]);
+	return v.u.a.e[v.u.a.size++];
+}
+
+void lept_json::popback_array_element(lept_value& v) {
+	assert(v.type == JSON_ARRAY && v.u.a.size > 0);
+	set_null(v.u.a.e[--v.u.a.size]);
+}
+
+lept_value& lept_json::insert_array_element(lept_value& v, size_t index) {
+	assert(v.type == JSON_ARRAY && index <= v.u.a.size);
+	if (v.u.a.size == v.u.a.capacity) reserve_array(v, v.u.a.capacity == 0 ? 1 : (v.u.a.size << 1));
+	memcpy(&v.u.a.e[index + 1], &v.u.a.e[index], (v.u.a.size - index) * sizeof(lept_value));
+	init(v.u.a.e[index]);
+	++v.u.a.size;
+	return v.u.a.e[index];
+}
+
+void lept_json::erase_array_element(lept_value& v, size_t index, size_t count) {
+	assert(v.type == JSON_ARRAY && index + count <= v.u.a.size);
+	for (size_t i = index; i < index + count; ++i) {
+		set_null(v.u.a.e[i]);
+	}
+	memcpy(v.u.a.e + index, v.u.a.e + index + count, (v.u.a.size - index - count) * sizeof(lept_value));
+	for (size_t i = v.u.a.size - count; i < v.u.a.size; ++i) {
+		init(v.u.a.e[i]);
+	}
+	v.u.a.size -= count;
+}
+
+void lept_json::set_array(lept_value& v, size_t capacity) {
+	set_null(v);
+	v.type = JSON_ARRAY;
+	v.u.a.size = 0;
+	v.u.a.capacity = capacity > 0 ? capacity : 0;
+	v.u.a.e = capacity > 0 ? (lept_value*)malloc(capacity * sizeof(lept_value)) : nullptr;
+}
+
+void lept_json::set_object(lept_value& v, size_t capacity) {
+	lept_free(v);
+	v.type = JSON_OBJECT;
+	v.u.o.size = 0;
+	v.u.o.capacity = capacity > 0 ? capacity : 0;
+	v.u.o.m = capacity > 0 ? (lept_member*)malloc(capacity * sizeof(lept_member)) : nullptr;
+}
+
+size_t lept_json::get_object_capacity(const lept_value& v) {
+	assert(v.type == JSON_OBJECT);
+	return v.u.o.capacity;
+}
+
+void lept_json::reserve_object(lept_value& v, size_t capacity) {
+	assert(v.type == JSON_OBJECT);
+	if (v.u.o.capacity < capacity) {
+		v.u.o.m = (lept_member*)realloc(v.u.o.m, capacity * sizeof(lept_member));
+		v.u.o.capacity = capacity;
+	}
+}
+
+void lept_json::shrink_object(lept_value& v) {
+	assert(v.type == JSON_OBJECT);
+	if (v.u.o.capacity > v.u.o.size) {
+		v.u.o.m = (lept_member*)realloc(v.u.o.m, v.u.o.size * sizeof(lept_member));
+		v.u.o.capacity = v.u.o.size;
+	}
+}
+
+void lept_json::clear_object(lept_value& v) {
+	assert(v.type == JSON_OBJECT);
+	for (size_t i = 0; i < v.u.o.size; ++i) {
+		free(v.u.o.m[i].k);
+		v.u.o.m[i].k = nullptr;
+		v.u.o.m[i].klen = 0;
+		lept_free(v.u.o.m[i].v);
+	}
+	v.u.o.size = 0;
+}
+
+size_t lept_json::find_object_index(const lept_value& v, const char* key, size_t klen) {
+	assert(v.type == JSON_OBJECT && key != nullptr);
+	for (size_t i = 0; i < v.u.o.size; ++i) {
+		if (v.u.o.m[i].klen == klen && memcmp(v.u.o.m[i].k, key, klen) == 0) return i;
+	}
+	return LEPT_KEY_NOT_EXIST;
+}
+
+lept_value& lept_json::find_object_value(lept_value& v, const char* key, size_t klen) {
+	size_t index = find_object_index(v, key, klen);
+	assert(index != LEPT_KEY_NOT_EXIST);
+	return v.u.o.m[index].v;
+}
+
+lept_value& lept_json::set_object_value(lept_value& v, const char* key, size_t klen) {
+	assert(v.type == JSON_OBJECT && key != nullptr);
+	size_t index = find_object_index(v, key, klen);
+	if (index != LEPT_KEY_NOT_EXIST) return v.u.o.m[index].v;
+	if (v.u.o.size == v.u.o.capacity) reserve_object(v, v.u.o.capacity == 0 ? 1 : (v.u.o.capacity << 1));
+	size_t flag = v.u.o.size;
+	v.u.o.m[flag].k = (char*)malloc(klen + 1);
+	memcpy(v.u.o.m[flag].k, key, klen);
+	v.u.o.m[flag].k[klen] = '\0';
+	v.u.o.m[flag].klen = klen;
+	init(v.u.o.m[flag].v);
+	++ v.u.o.size;
+	return v.u.o.m[flag].v;
+}
+
+void lept_json::remove_object_value(lept_value& v, size_t index) {
+	assert(v.type == JSON_OBJECT && index < v.u.o.size);
+	free(v.u.o.m[index].k);
+	lept_free(v.u.o.m[index].v);
+	memcpy(v.u.o.m + index, v.u.o.m + index + 1, (v.u.o.size - index - 1) * sizeof(lept_member));
+	v.u.o.m[--v.u.o.size].k = nullptr;
+	v.u.o.m[v.u.o.size].klen = 0;
+	init(v.u.o.m[v.u.o.size].v);
 }
 
 };
