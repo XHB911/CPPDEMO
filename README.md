@@ -41,12 +41,8 @@ Windows下利用Qt框架写的翻转金币的小游戏
 JSON 格式的解析器
 
 > [教程源于知乎—————从零开始的 JSON 库教程](https://zhuanlan.zhihu.com/json-tutorial)
+
 ## WebServer
 实现简易的Web服务器，利用线程池、 epoll 模型实现
 
 > 参照《Linux 高性能服务器编程》
-
-## JSON_parser
-JSON 格式的解析器
-
-> [教程源于知乎—————从零开始的 JSON 库教程](https://zhuanlan.zhihu.com/json-tutorial)
