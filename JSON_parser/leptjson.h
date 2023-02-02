@@ -1,7 +1,7 @@
 #ifndef _LEPTJSON_H__
 #define _LEPTJSON_H__
 
-#include <string>
+#include <string.h>
 #include <stdlib.h>
 #include <assert.h>
 
