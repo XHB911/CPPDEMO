@@ -55,5 +55,26 @@ JSON 格式的解析器
 > [教程源于知乎—————从零开始的 JSON 库教程](https://zhuanlan.zhihu.com/json-tutorial)
 
 ## nginx_memory_pool
+<<<<<<< HEAD
 用C++、OOP重新实现nginx内存池
 >>>>>>> 3eace7d (添加内存池分析)
+=======
+
+用 C++、OOP 重新实现 nginx 内存池
+
+## mysql_connection_pool
+
+实现一个 mysql 数据库连接池
+
+## chat_server
+
+集群聊天服务器
+
+UNDO：
+
+- 客户端实现
+- 集群实现
+- 负载均衡、服务器中间件实现
+
+还是喜欢造轮子，不喜欢写业务
+>>>>>>> 4b2e47b (添加聊天服务器项目)
