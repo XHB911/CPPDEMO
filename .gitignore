@@ -4,3 +4,4 @@ JSON_parser/CMakeFiles
 JSON_parser/libleptjson.a
 JSON_parser/cmake_install.cmake
 JSON_parser/Makefile
+.vscode/settings.json
