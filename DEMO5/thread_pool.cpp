@@ -26,7 +26,7 @@ struct thread_pool_t {
 	pthread_cond_t queue_not_full;
 	// 当任务队列不为空时，通知等待任务的线程
 	pthread_cond_t queue_not_empty;
-	
+
 	// 存放线程池中每个线程的tid
 	pthread_t *threads;
 	// 管理线程tid
@@ -153,7 +153,6 @@ void *work_thread(void *thread_pool) {
 	thread_pool_task_t task;
 
 	while (1) {
-		// 
 		pthread_mutex_lock(&(pool->lock));
 
 		// 如果任务队列中没有任务，则调用锁wait阻塞在queue_not_empty上
@@ -197,7 +196,7 @@ void *work_thread(void *thread_pool) {
 		pthread_mutex_lock(&(pool->thread_counter));
 		pool->busy_thread_num++;
 		pthread_mutex_unlock(&(pool->thread_counter));
-		
+
 		//执行回调函数
 		(*(task.function))(task.arg);
 
@@ -264,28 +263,23 @@ void *adjust_thread(void *thread_pool) {
 }
 
 int thread_pool_destroy(thread_pool_t *pool) {
-	if (pool == NULL)
-		return -1;
+	if (pool == NULL) return -1;
 
 	pool->shutdown = true;
 
 	pthread_join(pool->adjust_tid, NULL);
 
-	for (int i = 0; i < pool->live_thread_num; i++)
-		pthread_cond_broadcast(&(pool->queue_not_empty));
-	for (int i = 0; i < pool->live_thread_num; i++)
-		pthread_join(pool->threads[i], NULL);
+	for (int i = 0; i < pool->live_thread_num; i++) pthread_cond_broadcast(&(pool->queue_not_empty));
+	for (int i = 0; i < pool->live_thread_num; i++) pthread_join(pool->threads[i], NULL);
 
 	thread_pool_free(pool);
 	return 0;
 }
 
 int thread_pool_free(thread_pool_t *pool) {
-	if (pool == NULL)
-		return -1;
+	if (pool == NULL) return -1;
 
-	if (pool->task_queue) 
-		free(pool->task_queue);
+	if (pool->task_queue) free(pool->task_queue);
 
 	if (pool->threads) {
 		free(pool->threads);
@@ -305,8 +299,7 @@ int thread_pool_free(thread_pool_t *pool) {
 int is_thread_alive(pthread_t tid){
 	// 发送0号信号，测试线程是否存活
 	int kill_rc = pthread_kill(tid, 0);
-	if (kill_rc == ESRCH)
-		return false;
+	if (kill_rc == ESRCH) return false;
 	return true;
 }
 
@@ -325,7 +318,7 @@ int main(void) {
 	// 创建线程池，里面最少5个线程，最多100个线程
 	thread_pool_t *thp = thread_pool_create(5, 100, 100);
 	printf("thread pool created\n");
-	
+
 	long num[20];
 	for (long i = 0; i < 20; i++) {
 		num[i] = i;

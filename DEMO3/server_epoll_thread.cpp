@@ -10,7 +10,7 @@
 #define SERV_PORT 8888
 #define OPEN_MAX 1024
 
-int main(int argc, char **argv) {
+int main() {
 	int i, n, num = 0, listenfd, connfd, sockfd;
 	ssize_t nready, efd, res;
 	char buf[BUFSIZ], str[INET_ADDRSTRLEN];
@@ -66,29 +66,29 @@ int main(int argc, char **argv) {
 			perror("epoll error");
 			exit(1);
 		}
-		
+
 		for (i = 0; i < nready; i++) {
-		       if (!(ep[i].events & EPOLLIN)) continue;
+			if (!(ep[i].events & EPOLLIN)) continue;
 
-		       if (ep[i].data.fd == listenfd) {
-			       clilen = sizeof(cliaddr);
-			       connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
-			       printf("accept from %s at Port %d\n", inet_ntop(AF_INET, &cliaddr.sin_addr, str, sizeof(str)), ntohs(cliaddr.sin_port));
-			       printf("cfd %d---client %d\n", connfd, ++num);
+			if (ep[i].data.fd == listenfd) {
+				clilen = sizeof(cliaddr);
+				connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
+				printf("accept from %s at Port %d\n", inet_ntop(AF_INET, &cliaddr.sin_addr, str, sizeof(str)), ntohs(cliaddr.sin_port));
+				printf("cfd %d---client %d\n", connfd, ++num);
 
-			       tep.events = EPOLLIN;
-			       tep.data.fd = connfd;
-			       res = epoll_ctl(efd, EPOLL_CTL_ADD, connfd, &tep);
-			       if (res == -1) {
-				       perror("epoll_ctl error");
-				       exit(1);
-			       }
-		       } else {
-			       sockfd = ep[i].data.fd;
-			       if (( n = read(sockfd, buf, sizeof(buf))) < 0) {
-				       perror("read n<0 error:");
-				       res = epoll_ctl(efd, EPOLL_CTL_DEL, sockfd, NULL);
-				       close(sockfd);
+				tep.events = EPOLLIN;
+				tep.data.fd = connfd;
+				res = epoll_ctl(efd, EPOLL_CTL_ADD, connfd, &tep);
+				if (res == -1) {
+					perror("epoll_ctl error");
+					exit(1);
+				}
+			} else {
+				sockfd = ep[i].data.fd;
+				if (( n = read(sockfd, buf, sizeof(buf))) < 0) {
+					perror("read n<0 error:");
+					res = epoll_ctl(efd, EPOLL_CTL_DEL, sockfd, NULL);
+					close(sockfd);
 				} else if (n == 0) {
 					if (epoll_ctl(efd, EPOLL_CTL_DEL, sockfd, NULL) == -1) {
 						perror("epoll_ctl error");
@@ -117,8 +117,8 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 	if (close(efd) < 0) {
-	       perror("close efd error");
-	       exit(1);
-	} 
+			perror("close efd error");
+			exit(1);
+	}
 	return 0;
 }
